@@ -63,13 +63,15 @@ let process_file filename =
     let grammar = SimpleParser.Grammar.of_ast ast in
     (* Seq.iter (function (token, _) -> Format.printf "%t@." (SimpleParser.Lexer.Token.print token)) lexer *)
     (* Format.printf "%t@." (SimpleParser.Ast.print ast) *)
-    Format.printf "%t@." (SimpleParser.Grammar.print grammar);
+    (* Format.printf "%t@." (SimpleParser.Grammar.print grammar); *)
     Format.printf "%t@." (SimpleParser.Generator.generate_parser grammar)
   with
   | SimpleParser.Generator.Error (e, _) ->
     Format.eprintf "generation error: %t@." (SimpleParser.Generator.print_error e)
 
 let _ =
+  (* let opt = Format.get_formatter_out_functions () in
+  Format.set_formatter_out_functions { opt with out_indent = function i -> }; *)
   (* read options. *)
   let conf = Clap.parse spec Conf.default in
   begin match conf.filename with

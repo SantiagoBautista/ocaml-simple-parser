@@ -1,5 +1,6 @@
 open CodeMap
-open Unicode.UString
+open Unicode
+open UString
 
 module StringMap = Map.Make (Utf8String)
 
@@ -12,12 +13,46 @@ exception Error of error Span.located
 module Terminal = struct
   type t =
     | Keyword of Utf8String.t
+    | Begin of char
+    | End of char
+    | Operator of Utf8String.t
+
+  let is_indent name = 
+    let res, _ = Utf8String.fold_left (
+      fun (res, non_first) c ->
+        match res, non_first with
+        | false, _ -> (false, true)
+        | true, non_first ->
+          if UChar.is_alphabetic c || (non_first && UChar.is_alphanumeric c) then
+            (true, true)
+          else
+            (false, false)
+    ) (true, false) name
+    in
+    res
+
+  let of_string name =
+    match name with
+    | _ when is_indent name -> Keyword name
+    | "{" -> Begin '{'
+    | "[" -> Begin '['
+    | "(" -> Begin '('
+    | "}" -> End '}'
+    | "]" -> End ']'
+    | ")" -> End ')'
+    | _ -> Operator name
 
   let compare = compare
 
   let print t out =
     match t with
     | Keyword name ->
+      Format.fprintf out "%s" name
+    | Begin c ->
+      Format.fprintf out "%c" c
+    | End c ->
+      Format.fprintf out "%c" c
+    | Operator name ->
       Format.fprintf out "%s" name
 end
 
@@ -63,7 +98,8 @@ type t = (definition Span.located) StringMap.t
 
 let token_of_ast table (token, span) =
   match token with
-  | Ast.Terminal name -> Terminal (Terminal.Keyword name), span
+  | Ast.Terminal name ->
+    Terminal (Terminal.of_string name), span
   | Ast.NonTerminal name ->
     begin match Hashtbl.find_opt table name with
       | Some nt -> NonTerminal (Ref nt), span

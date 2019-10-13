@@ -10,6 +10,9 @@ exception Error of error Span.located
 module Terminal : sig
   type t =
     | Keyword of Utf8String.t
+    | Begin of char
+    | End of char
+    | Operator of Utf8String.t
 
   val compare : t -> t -> int
 

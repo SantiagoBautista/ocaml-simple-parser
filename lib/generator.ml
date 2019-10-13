@@ -194,31 +194,69 @@ end
 let generate_lexer _ =
   failwith "TODO"
 
-let generate_constructor name fmt =
-  0
+let constructor name =
+    let buffer = Bytes.of_string name in
+    let c = Char.code (Bytes.get buffer 0) in
+    if c >= 0x61 && c <= 0x7a then
+        Bytes.set buffer 0 (Char.chr (c - 0x20));
+    Bytes.to_string buffer
 
 let generate_terminal t fmt =
   match t with
   | Grammar.Terminal.Keyword name ->
-    Format.fprintf fmt "Keyword %t" name;
+    Format.fprintf fmt "Token.Keyword %s" (constructor name)
+  | Grammar.Terminal.Begin c ->
+    Format.fprintf fmt "Token.Begin '%c'" c
+  | Grammar.Terminal.End c ->
+    Format.fprintf fmt "Token.End '%c'" c
+  | Grammar.Terminal.Operator op ->
+    Format.fprintf fmt "Token.Operator \"%s\"" op
 
 let generate_definition_parser table def fmt =
   let name = def.Grammar.name in
-  Format.fprintf fmt "let parse_%s lexer = @[\n" name;
-  Format.fprintf fmt "match lexer () with @[\n";
+  Format.fprintf fmt "let parse_%s pos lexer = \n" name;
+  Format.fprintf fmt "let span = Span.of_position pos in \n";
+  Format.fprintf fmt "match lexer () with \n";
   let nt_table = Hashtbl.find table name in
   TerminalOptMap.iter (
     fun terminal_opt route ->
       match route with
-      | Route.Rule ((_, _), _) ->
+      | Route.Rule ((rule, _), _) ->
         begin match terminal_opt with
         | Some terminal ->
-          Format.fprintf fmt "| Seq.Cons (%t, _) -> ...\n" (Grammar.Terminal.print terminal);
+          Format.fprintf fmt "| Seq.Cons ((%t, _), _) -> \n" (generate_terminal terminal);
+          let rec generate_rule rule =
+            match rule with
+            | [] ->
+              Format.fprintf fmt "%s ()\n" (constructor name)
+            | (Grammar.Terminal terminal, _)::rule' ->
+              Format.fprintf fmt "begin match consume span lexer with \n";
+              Format.fprintf fmt "| Some (%t, lexer), span -> \n" (generate_terminal terminal);
+              generate_rule rule';
+              Format.fprintf fmt "| Some (token, _), span -> raise (Error (UnexpectedToken token, span))\n";
+              Format.fprintf fmt "| None, span -> raise (Error (UnexpectedEOF, span))\n";
+              Format.fprintf fmt "end\n"
+            | (Grammar.NonTerminal _, _)::rule' ->
+              Format.fprintf fmt "let _ = print_thing in \n";
+              generate_rule rule'
+          in
+          generate_rule rule
         | None -> ()
         end
       | _ -> ()
   ) nt_table;
-  Format.fprintf fmt "@]@]@."
+  begin match TerminalOptMap.find_first_opt Option.is_none nt_table with
+    | Some (_, route) ->
+      begin match route with
+        | Route.Rule ((_, _), _) ->
+          Format.fprintf fmt "| _ -> %s\n" (constructor name)
+        | _ -> failwith "No route. This is a bug."
+      end
+    | None ->
+      Format.fprintf fmt "| Seq.Cons ((token, span), _) -> raise (Error (UnexpectedToken token, span))\n";
+      Format.fprintf fmt "| Seq.Nil -> raise (Error (UnexpectedEOF, span))\n"
+  end;
+  Format.fprintf fmt "@."
 
 let generate_non_terminal_parser table nt fmt =
   match nt with
