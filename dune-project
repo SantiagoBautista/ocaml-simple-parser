@@ -1,2 +1,9 @@
 (lang dune 1.11)
-(name code-map)
+(package
+  (name simple-parser)
+  (synopsis "A very simple parser generator from BNF LL1 grammars for educational purposes.")
+  (description "Provides a AST and Parser generator from a BNF-like grammar definition.")
+)
+(authors "Timothée Haudebourg <timothee.haudebourg@irisa.fr>")
+(maintainers "Timothée Haudebourg <timothee.haudebourg@irisa.fr>")
+(generate_opam_files true)

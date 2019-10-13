@@ -1,0 +1,7 @@
+<expression> ::=
+	| if { <expression> } else { <expression> }
+	| label <expression>
+;
+
+<action> ::=
+	| eat
