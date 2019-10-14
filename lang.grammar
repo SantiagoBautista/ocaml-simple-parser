@@ -1,6 +1,7 @@
 type expression =
 	| IfThenElse	if { <expression> } else { <expression> }
-	| Label			label <expression>
+	| Label				label <int> <expression>
+	| Do					do <action>
 
 type action =
-	| Eat			eat
+	| Eat					eat

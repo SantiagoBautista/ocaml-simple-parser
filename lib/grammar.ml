@@ -10,24 +10,29 @@ type error =
 
 exception Error of error Span.located
 
+type primitive =
+  | Int
+  | Ident
+
 module Terminal = struct
   type t =
     | Keyword of Utf8String.t
     | Begin of char
     | End of char
     | Operator of Utf8String.t
+    | Primitive of primitive
 
-  let is_indent name = 
+  let is_indent name =
     let res, _ = Utf8String.fold_left (
-      fun (res, non_first) c ->
-        match res, non_first with
-        | false, _ -> (false, true)
-        | true, non_first ->
-          if UChar.is_alphabetic c || (non_first && UChar.is_alphanumeric c) then
-            (true, true)
-          else
-            (false, false)
-    ) (true, false) name
+        fun (res, non_first) c ->
+          match res, non_first with
+          | false, _ -> (false, true)
+          | true, non_first ->
+            if UChar.is_alphabetic c || (non_first && UChar.is_alphanumeric c) then
+              (true, true)
+            else
+              (false, false)
+      ) (true, false) name
     in
     res
 
@@ -54,7 +59,13 @@ module Terminal = struct
       Format.fprintf out "%c" c
     | Operator name ->
       Format.fprintf out "%s" name
+    | Primitive Int ->
+      Format.fprintf out "<<int>>"
+    | Primitive Ident ->
+      Format.fprintf out "<<ident>>"
 end
+
+module TerminalSet = Set.Make (Terminal)
 
 type token =
   | Terminal of Terminal.t
@@ -64,6 +75,7 @@ and non_terminal =
   | Ref of non_terminal_ref
   | Iterated of non_terminal_ref * Utf8String.t
   | Optional of non_terminal_ref
+  | Primitive of primitive
 
 and non_terminal_ref = {
   span: Span.t;
@@ -91,6 +103,10 @@ module NonTerminal = struct
       Format.fprintf fmt "<%s*%s>" (Option.get nt.definition).name sep
     | Optional nt ->
       Format.fprintf fmt "<%s?>" (Option.get nt.definition).name
+    | Primitive Int ->
+      Format.fprintf fmt "<int>"
+    | Primitive Ident ->
+      Format.fprintf fmt "<ident>"
 
   let compare = compare
 end
@@ -99,16 +115,25 @@ module NonTerminalSet = Set.Make (NonTerminal)
 
 type t = (definition Span.located) StringMap.t
 
+let non_terminal_of_name table span name =
+  begin match name with
+    | "int" -> Primitive Int
+    | "ident" -> Primitive Ident
+    | _ ->
+      begin match Hashtbl.find_opt table name with
+        | Some nt -> Ref nt
+        | None ->
+          raise (Error (UndefinedNonTerminal name, span))
+      end
+  end
+
 let token_of_ast table (token, span) =
   match token with
   | Ast.Terminal name ->
     Terminal (Terminal.of_string name), span
   | Ast.NonTerminal name ->
-    begin match Hashtbl.find_opt table name with
-      | Some nt -> NonTerminal (Ref nt), span
-      | None ->
-        raise (Error (UndefinedNonTerminal name, span))
-    end
+    let nt = non_terminal_of_name table span name in
+    NonTerminal nt, span
 
 let rule_of_ast table ((ast, span) : Ast.rule Span.located) =
   {
@@ -174,6 +199,39 @@ let fold_non_terminals f t accu =
 
 let iter_non_terminals f t =
   fold_non_terminals (fun nt () -> f nt) t ()
+
+let terminals t =
+  let raw_terminals = StringMap.fold (fun _ (def, _) set ->
+      List.fold_right (fun (rule, _) set ->
+          List.fold_right (
+            fun (token, _) set ->
+              match token with
+              | Terminal t ->
+                TerminalSet.add t set
+              | NonTerminal _ -> set
+          ) rule.tokens set
+        ) def.rules set
+    ) t TerminalSet.empty
+  in
+  fold_non_terminals (
+    fun nt set ->
+      match nt with
+      | Primitive p -> TerminalSet.add (Terminal.Primitive p) set
+      | _ -> set
+  ) t raw_terminals
+
+let fold_terminals f t accu =
+  TerminalSet.fold f (terminals t) accu
+
+let iter_terminals f t =
+  fold_terminals (fun nt () -> f nt) t ()
+
+let rule_args rule =
+  List.filter_map (
+    function
+    | NonTerminal nt, _ -> Some nt
+    | _ -> None
+  ) rule.tokens
 
 let print_token token fmt =
   match token with

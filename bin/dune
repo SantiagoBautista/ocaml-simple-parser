@@ -1,4 +1,5 @@
 (executable
+  (package simple-parser-test)
   (name simpleParserGen)
   (public_name simple-parser-gen)
   (libraries unicode code-map clap simple-parser)

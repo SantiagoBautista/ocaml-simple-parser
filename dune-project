@@ -4,6 +4,11 @@
   (synopsis "A very simple parser generator from BNF LL1 grammars for educational purposes.")
   (description "Provides a AST and Parser generator from a BNF-like grammar definition.")
 )
+(package
+  (name simple-parser-test)
+  (synopsis "A very simple parser generator from BNF LL1 grammars for educational purposes.")
+  (description "Provides a AST and Parser generator from a BNF-like grammar definition.")
+)
 (authors "Timothée Haudebourg <timothee.haudebourg@irisa.fr>")
 (maintainers "Timothée Haudebourg <timothee.haudebourg@irisa.fr>")
 (generate_opam_files true)

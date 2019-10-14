@@ -7,12 +7,17 @@ type error =
 
 exception Error of error Span.located
 
+type primitive =
+  | Int
+  | Ident
+
 module Terminal : sig
   type t =
     | Keyword of Utf8String.t
     | Begin of char
     | End of char
     | Operator of Utf8String.t
+    | Primitive of primitive
 
   val compare : t -> t -> int
 
@@ -27,6 +32,7 @@ and non_terminal =
   | Ref of non_terminal_ref
   | Iterated of non_terminal_ref * Utf8String.t
   | Optional of non_terminal_ref
+  | Primitive of primitive
 
 and non_terminal_ref = {
   span: Span.t;
@@ -51,9 +57,15 @@ val fold : (definition Span.located -> 'a -> 'a) -> t -> 'a -> 'a
 
 val iter : (definition Span.located -> unit) -> t -> unit
 
+val fold_terminals : (Terminal.t -> 'a -> 'a) -> t -> 'a -> 'a
+
+val iter_terminals : (Terminal.t -> unit) -> t -> unit
+
 val fold_non_terminals : (non_terminal -> 'a -> 'a) -> t -> 'a -> 'a
 
 val iter_non_terminals : (non_terminal -> unit) -> t -> unit
+
+val rule_args : rule -> non_terminal list
 
 val print : t -> Format.formatter -> unit
 
