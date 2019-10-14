@@ -11,34 +11,32 @@ module Token = struct
   type t =
     | Terminal of Utf8String.t
     | NonTerminal of Utf8String.t
-    | Definition
-    | DefinitionSeparator
-    | RuleSeparator
 
   let print t fmt =
     match t with
     | Terminal name -> Format.fprintf fmt "%s" name
     | NonTerminal name -> Format.fprintf fmt "<%s>" name
-    | Definition -> Format.fprintf fmt "::="
-    | DefinitionSeparator -> Format.fprintf fmt ";"
-    | RuleSeparator -> Format.fprintf fmt "|"
 end
 
 module TokenKind = struct
   type t =
     | Terminal
     | NonTerminal
-    | Definition
-    | DefinitionSeparator
+    | Type
+    | TypeIdent
+    | Equal
     | RuleSeparator
+    | Constructor
 
   let print t fmt =
     match t with
     | Terminal -> Format.fprintf fmt "terminal"
     | NonTerminal -> Format.fprintf fmt "non terminal `<...>`"
-    | Definition -> Format.fprintf fmt "operator `::=`"
-    | DefinitionSeparator -> Format.fprintf fmt "non-terminal definition separator `;`"
+    | Type -> Format.fprintf fmt "keyword `type`"
+    | TypeIdent -> Format.fprintf fmt "type identifier"
+    | Equal -> Format.fprintf fmt "keyword `=`"
     | RuleSeparator -> Format.fprintf fmt "rule separator `|`"
+    | Constructor -> Format.fprintf fmt "OCaml constructor"
 end
 
 type token = Token.t
@@ -81,9 +79,6 @@ let rec read_non_terminal span chars =
 and read_terminal span (c, chars) =
   let return span chars buffer =
     let token = match buffer with
-      | "::=" -> Token.Definition
-      | ";" -> Token.DefinitionSeparator
-      | "|" -> Token.RuleSeparator
       | _ -> Token.Terminal buffer
     in
     Seq.Cons (Span.located span token, next (Span.next span) chars)

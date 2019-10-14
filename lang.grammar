@@ -1,7 +1,6 @@
-<expression> ::=
-	| if { <expression> } else { <expression> }
-	| label <expression>
-;
+type expression =
+	| IfThenElse	if { <expression> } else { <expression> }
+	| Label			label <expression>
 
-<action> ::=
-	| eat
+type action =
+	| Eat			eat

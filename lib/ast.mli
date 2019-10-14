@@ -7,7 +7,10 @@ type token =
   | NonTerminal of Utf8String.t
 
 (** Non-terminal rule. *)
-type rule = token Span.located list
+type rule = {
+  constructor: Utf8String.t Span.located;
+  tokens: token Span.located list
+}
 
 (** Non-terminal definition. *)
 type definition = {

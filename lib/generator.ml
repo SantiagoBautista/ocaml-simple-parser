@@ -100,7 +100,7 @@ module ParseTable = struct
             | None -> aux (route::rule_route) tokens' set
         ) firsts set
     in
-    aux [] rule TerminalOptMap.empty
+    aux [] rule.tokens TerminalOptMap.empty
 
   let check_rule_ambiguities table def (rule, rule_span) =
     let rec first_terminals_of table nt =
@@ -170,7 +170,7 @@ module ParseTable = struct
           ) terminals;
         check (i + 1) tokens'
     in
-    check 0 rule
+    check 0 rule.tokens
 
   let of_grammar g =
     let table = Hashtbl.create 8 in
@@ -225,22 +225,22 @@ let generate_definition_parser table def fmt =
         begin match terminal_opt with
         | Some terminal ->
           Format.fprintf fmt "| Seq.Cons ((%t, _), _) -> \n" (generate_terminal terminal);
-          let rec generate_rule rule =
-            match rule with
+          let rec generate_tokens tokens =
+            match tokens with
             | [] ->
-              Format.fprintf fmt "%s ()\n" (constructor name)
-            | (Grammar.Terminal terminal, _)::rule' ->
+              Format.fprintf fmt "%s ()\n" (fst rule.constructor)
+            | (Grammar.Terminal terminal, _)::tokens' ->
               Format.fprintf fmt "begin match consume span lexer with \n";
               Format.fprintf fmt "| Some (%t, lexer), span -> \n" (generate_terminal terminal);
-              generate_rule rule';
+              generate_tokens tokens';
               Format.fprintf fmt "| Some (token, _), span -> raise (Error (UnexpectedToken token, span))\n";
               Format.fprintf fmt "| None, span -> raise (Error (UnexpectedEOF, span))\n";
               Format.fprintf fmt "end\n"
-            | (Grammar.NonTerminal _, _)::rule' ->
+            | (Grammar.NonTerminal _, _)::tokens' ->
               Format.fprintf fmt "let _ = print_thing in \n";
-              generate_rule rule'
+              generate_tokens tokens'
           in
-          generate_rule rule
+          generate_tokens rule.tokens
         | None -> ()
         end
       | _ -> ()

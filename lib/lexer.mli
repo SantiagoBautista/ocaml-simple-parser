@@ -11,9 +11,6 @@ module Token : sig
   type t =
     | Terminal of Utf8String.t
     | NonTerminal of Utf8String.t
-    | Definition
-    | DefinitionSeparator
-    | RuleSeparator
 
   val print : t -> Format.formatter -> unit
 end
@@ -22,9 +19,11 @@ module TokenKind : sig
   type t =
     | Terminal
     | NonTerminal
-    | Definition
-    | DefinitionSeparator
+    | Type
+    | TypeIdent
+    | Equal
     | RuleSeparator
+    | Constructor
 
   val print : t -> Format.formatter -> unit
 end

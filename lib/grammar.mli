@@ -33,7 +33,10 @@ and non_terminal_ref = {
   mutable definition: definition option
 }
 
-and rule = token Span.located list
+and rule = {
+  constructor: Utf8String.t Span.located;
+  tokens: token Span.located list
+}
 
 and definition = {
   name: Utf8String.t;

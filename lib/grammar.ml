@@ -70,7 +70,10 @@ and non_terminal_ref = {
   mutable definition: definition option
 }
 
-and rule = token Span.located list
+and rule = {
+  constructor: Utf8String.t Span.located;
+  tokens: token Span.located list
+}
 
 and definition = {
   name: Utf8String.t;
@@ -108,7 +111,10 @@ let token_of_ast table (token, span) =
     end
 
 let rule_of_ast table ((ast, span) : Ast.rule Span.located) =
-  List.map (token_of_ast table) ast, span
+  {
+    constructor = ast.constructor;
+    tokens = List.map (token_of_ast table) ast.tokens
+  }, span
 
 let definition_of_ast table (ast, span) =
   {
@@ -159,7 +165,7 @@ let non_terminals t =
               | Terminal _ -> set
               | NonTerminal nt ->
                 NonTerminalSet.add nt set
-          ) rule set
+          ) rule.tokens set
         ) def.rules set
     ) t NonTerminalSet.empty
 
@@ -177,10 +183,11 @@ let print_token token fmt =
     NonTerminal.print nt fmt
 
 let print_rule rule fmt =
+  Format.fprintf fmt "| %s " (fst rule.constructor);
   List.iter (
     function (token, _) ->
       Format.fprintf fmt "%t " (print_token token)
-  ) rule
+  ) rule.tokens
 
 let print_definition def fmt =
   Format.fprintf fmt "<%s> ::= \n" def.name;

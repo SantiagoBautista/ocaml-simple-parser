@@ -7,7 +7,10 @@ type token =
   | NonTerminal of Utf8String.t
 
 (** Non-terminal rule. *)
-type rule = token Span.located list
+type rule = {
+  constructor: Utf8String.t Span.located;
+  tokens: token Span.located list
+}
 
 (** Non-terminal definition. *)
 type definition = {
@@ -24,10 +27,11 @@ let print_token token fmt =
   | NonTerminal name -> Format.fprintf fmt "<%s>" name
 
 let print_rule rule fmt =
+  Format.fprintf fmt "| %s " (fst rule.constructor);
   List.iter (
     function (token, _) ->
       Format.fprintf fmt "%t " (print_token token)
-  ) rule
+  ) rule.tokens
 
 let print_definition def fmt =
   Format.fprintf fmt "<%s> ::= \n" (fst def.name);
