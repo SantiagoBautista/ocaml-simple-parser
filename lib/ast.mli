@@ -4,6 +4,7 @@ open Unicode.UString
 type non_terminal =
   | Ident of Utf8String.t
   | Iterated of Utf8String.t * Utf8String.t * bool
+  | Optional of Utf8String.t
 
 (** Token. *)
 type token =

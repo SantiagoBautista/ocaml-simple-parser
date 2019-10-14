@@ -4,6 +4,7 @@ open Unicode.UString
 type non_terminal =
   | Ident of Utf8String.t
   | Iterated of Utf8String.t * Utf8String.t * bool
+  | Optional of Utf8String.t
 
 (** Token. *)
 type token =
@@ -31,6 +32,7 @@ let print_token token fmt =
   | NonTerminal (Ident name) -> Format.fprintf fmt "<%s>" name
   | NonTerminal (Iterated (name, sep, false)) -> Format.fprintf fmt "<%s*%s>" name sep
   | NonTerminal (Iterated (name, sep, true)) -> Format.fprintf fmt "<%s+%s>" name sep
+  | NonTerminal (Optional name) -> Format.fprintf fmt "<%s?>" name
 
 let print_rule rule fmt =
   Format.fprintf fmt "| %s " (fst rule.constructor);

@@ -98,6 +98,8 @@ let process_file conf filename =
           Format.printf "%t@." (SimpleParser.Generator.generate_parser grammar)
     end
   with
+  | SimpleParser.Grammar.Error (e, _) ->
+    Format.eprintf "grammar error: %t@." (SimpleParser.Grammar.print_error e)
   | SimpleParser.ParseTable.Error (e, _) ->
     Format.eprintf "generation error: %t@." (SimpleParser.ParseTable.print_error e)
 

@@ -22,7 +22,7 @@ type error =
   | Ambiguity of Grammar.non_terminal * Grammar.Terminal.t option * Route.t * Route.t
   | RuleAmbiguity of Grammar.definition * Grammar.rule * Grammar.Terminal.t option * Route.rule_route * Route.rule_route
   | RuleInnerAmbiguity of Grammar.definition * Grammar.rule * int * Span.t * Grammar.Terminal.t * Route.t * int * Span.t
-  | IterationAmbiguity of Grammar.definition * Grammar.rule * Grammar.non_terminal_ref * Utf8String.t * Route.t
+  | IterationAmbiguity of Grammar.definition * Grammar.rule * Grammar.simple_non_terminal * Grammar.Terminal.t * Route.t
 
 exception Error of error Span.located
 
@@ -51,6 +51,14 @@ let rec compute_first_terminals_of_non_terminal_def visited_rules nt (def, span)
       end
   ) def.Grammar.rules TerminalOptMap.empty
 
+and compute_first_terminals_of_simple_non_terminal visited_rules nt (simple, span) =
+  match simple with
+  | Grammar.Primitive p ->
+    TerminalOptMap.singleton (Some (Grammar.Terminal.Primitive p)) Route.Primitive
+  | Grammar.Ref rnt ->
+    let def = Option.get rnt.definition in
+    compute_first_terminals_of_non_terminal_def visited_rules nt (def, span)
+
 and compute_first_terminals_of_non_terminal visited_rules (nt, span) =
   let add terminal_opt route set =
     begin match TerminalOptMap.find_opt terminal_opt set with
@@ -61,21 +69,18 @@ and compute_first_terminals_of_non_terminal visited_rules (nt, span) =
     end
   in
   begin match nt with
-    | Grammar.Primitive p ->
-      TerminalOptMap.singleton (Some (Grammar.Terminal.Primitive p)) Route.Primitive
-    | Grammar.Ref rnt ->
-      let def = Option.get rnt.definition in
-      compute_first_terminals_of_non_terminal_def visited_rules nt (def, span)
-    | Grammar.Iterated (nt, sep, non_empty) ->
-      let set = compute_first_terminals_of_non_terminal visited_rules (Grammar.Ref nt, span) in
+    | Grammar.Simple s ->
+      compute_first_terminals_of_simple_non_terminal visited_rules nt (s, span)
+    | Grammar.Iterated (simple, sep, non_empty) ->
+      let set = compute_first_terminals_of_simple_non_terminal visited_rules nt (simple, span) in
       let set = match TerminalOptMap.find_opt None set with
         | Some route ->
-          add (Some (Grammar.Terminal.Keyword sep)) route set
+          add (Some sep) route set
         | None -> set
       in
       if non_empty then set else add None Route.Nil set
-    | Grammar.Optional nt ->
-      add None Route.None (compute_first_terminals_of_non_terminal visited_rules (Grammar.Ref nt, span))
+    | Grammar.Optional simple ->
+      add None Route.None (compute_first_terminals_of_simple_non_terminal visited_rules nt (simple, span))
   end
 
 and compute_first_terminals_of_rule visited_rules def (rule, span) =
@@ -104,27 +109,33 @@ and compute_first_terminals_of_rule visited_rules def (rule, span) =
   in
   aux [] rule.tokens TerminalOptMap.empty
 
+let first_terminals_of_simple_non_terminal table simple =
+  begin match simple with
+    | Grammar.Primitive p ->
+      TerminalOptMap.singleton (Some (Grammar.Terminal.Primitive p)) Route.Primitive
+    | Grammar.Ref nt ->
+      let def = Option.get nt.definition in
+      Hashtbl.find table def.Grammar.name
+  end
+
 let check_rule_ambiguities table def (rule, rule_span) =
-  let rec first_terminals_of table nt =
+  let first_terminals_of table nt =
     let add terminal_opt route set =
       TerminalOptMap.add terminal_opt route set
     in
     begin match nt with
-      | Grammar.Primitive p ->
-        TerminalOptMap.singleton (Some (Grammar.Terminal.Primitive p)) Route.Primitive
-      | Grammar.Ref nt ->
-        let def = Option.get nt.definition in
-        Hashtbl.find table def.Grammar.name
+      | Grammar.Simple simple ->
+        first_terminals_of_simple_non_terminal table simple
       | Grammar.Iterated (nt, sep, non_empty) ->
-        let set = first_terminals_of table (Grammar.Ref nt) in
+        let set = first_terminals_of_simple_non_terminal table nt in
         let set = match TerminalOptMap.find_opt None set with
           | Some route ->
-            add (Some (Grammar.Terminal.Keyword sep)) route set
+            add (Some sep) route set
           | None -> set
         in
         if non_empty then set else add None Route.Nil set
       | Grammar.Optional nt ->
-        add None Route.None (first_terminals_of table (Grammar.Ref nt))
+        add None Route.None (first_terminals_of_simple_non_terminal table nt)
     end
   in
   let rec check i tokens =
@@ -153,10 +164,9 @@ let check_rule_ambiguities table def (rule, rule_span) =
           end
       in
       begin match nt with
-        | Iterated (nt, sep) ->
-          let def = Option.get nt.definition in
-          let terminals = Hashtbl.find table def.Grammar.name in
-          begin match TerminalOptMap.find_opt (Some (Grammar.Terminal.Keyword sep)) terminals with
+        | Iterated (nt, sep, _) ->
+          let terminals = first_terminals_of_simple_non_terminal table nt in
+          begin match TerminalOptMap.find_opt (Some sep) terminals with
             | Some route ->
               raise (Error (IterationAmbiguity (def, rule, nt, sep, route), span))
             | None -> ()
@@ -180,10 +190,10 @@ let of_grammar g =
   let table = Hashtbl.create 8 in
   Grammar.iter (
     function (def, def_span) ->
-      let nt = Grammar.Ref {
+      let nt = Grammar.Simple (Grammar.Ref {
           span = def_span;
           definition = Some def
-        }
+        })
       in
       let nt_table = compute_first_terminals_of_non_terminal RuleSet.empty (nt, def_span) in
       Hashtbl.add table def.name nt_table

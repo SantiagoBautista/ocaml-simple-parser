@@ -1,10 +1,8 @@
 type expression =
-	| IfThenElse	if { <expression> } else { <expression> }
-	| Label				label <int> <expression>
-	| Do					do <action>
+	| IfThenElse	if <action> { <expression> } else { <expression> }
 
 type action =
 	| Eat					eat
 
 type program =
-	| Program 		<expression*;>
+	| Program 		<expression+;>

@@ -1,0 +1,17 @@
+- check non-emptyness of separators.
+ or handle them.
+
+- separate symbols and names
+
+- handle star iterators.
+
+- handle optionals.
+
+- fix ambiguity detection.
+ iterations introduce ambiguity.
+
+- escapes.
+
+- panic if two rules have the same constructor.
+
+- error messages !

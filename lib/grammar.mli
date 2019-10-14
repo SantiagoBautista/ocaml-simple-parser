@@ -19,6 +19,8 @@ module Terminal : sig
     | Operator of Utf8String.t
     | Primitive of primitive
 
+  val of_string : string -> t
+
   val compare : t -> t -> int
 
   val print : t -> Format.formatter -> unit
@@ -30,11 +32,11 @@ type token =
 
 and non_terminal =
   | Simple of simple_non_terminal
-  | Iterated of simple_non_terminal * Utf8String.t * bool
+  | Iterated of simple_non_terminal * Terminal.t * bool
   | Optional of simple_non_terminal
 
 and simple_non_terminal =
-  | Ref non_terminal_ref
+  | Ref of non_terminal_ref
   | Primitive of primitive
 
 and non_terminal_ref = {
@@ -79,3 +81,5 @@ val print_non_terminal : non_terminal -> Format.formatter -> unit
 val print_rule : rule -> Format.formatter -> unit
 
 val print_token : token -> Format.formatter -> unit
+
+val print_error : error -> Format.formatter -> unit

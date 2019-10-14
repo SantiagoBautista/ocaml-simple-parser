@@ -4,6 +4,7 @@ open CodeMap
 
 type error =
   | Unexpected of UChar.t option
+  | EmptyToken
 
 exception Error of error Span.located
 
@@ -12,6 +13,7 @@ module Token : sig
     | Terminal of Utf8String.t
     | NonTerminal of Utf8String.t
     | Iterated of Utf8String.t * Utf8String.t * bool
+    | Optional of Utf8String.t
 
   val print : t -> Format.formatter -> unit
 end

@@ -72,9 +72,12 @@ type token =
   | NonTerminal of non_terminal
 
 and non_terminal =
+  | Simple of simple_non_terminal
+  | Iterated of simple_non_terminal * Terminal.t * bool
+  | Optional of simple_non_terminal
+
+and simple_non_terminal =
   | Ref of non_terminal_ref
-  | Iterated of non_terminal_ref * Utf8String.t * bool
-  | Optional of non_terminal_ref
   | Primitive of primitive
 
 and non_terminal_ref = {
@@ -95,20 +98,25 @@ and definition = {
 module NonTerminal = struct
   type t = non_terminal
 
-  let print t fmt =
+  let print_simple t fmt =
     match t with
-    | Ref nt ->
-      Format.fprintf fmt "<%s>" (Option.get nt.definition).name
-    | Iterated (nt, sep, false) ->
-      Format.fprintf fmt "<%s*%s>" (Option.get nt.definition).name sep
-    | Iterated (nt, sep, true) ->
-      Format.fprintf fmt "<%s+%s>" (Option.get nt.definition).name sep
-    | Optional nt ->
-      Format.fprintf fmt "<%s?>" (Option.get nt.definition).name
     | Primitive Int ->
       Format.fprintf fmt "<int>"
     | Primitive Ident ->
       Format.fprintf fmt "<ident>"
+    | Ref nt ->
+      Format.fprintf fmt "<%s>" (Option.get nt.definition).name
+
+  let print t fmt =
+    match t with
+    | Simple s ->
+      print_simple s fmt
+    | Iterated (nt, sep, false) ->
+      Format.fprintf fmt "<%t*%t>" (print_simple nt) (Terminal.print sep)
+    | Iterated (nt, sep, true) ->
+      Format.fprintf fmt "<%t+%t>" (print_simple nt) (Terminal.print sep)
+    | Optional nt ->
+      Format.fprintf fmt "<%t?>" (print_simple nt)
 
   let compare = compare
 end
@@ -117,7 +125,7 @@ module NonTerminalSet = Set.Make (NonTerminal)
 
 type t = (definition Span.located) StringMap.t
 
-let non_terminal_of_name table span name =
+let simple_non_terminal_of_name table span name =
   begin match name with
     | "int" -> Primitive Int
     | "ident" -> Primitive Ident
@@ -134,11 +142,14 @@ let token_of_ast table (token, span) =
   | Ast.Terminal name ->
     Terminal (Terminal.of_string name), span
   | Ast.NonTerminal (Ast.Ident name) ->
-    let nt = non_terminal_of_name table span name in
-    NonTerminal nt, span
+    let nt = simple_non_terminal_of_name table span name in
+    NonTerminal (Simple nt), span
   | Ast.NonTerminal (Ast.Iterated (name, sep, non_empty)) ->
-    let nt = non_terminal_of_name table span name in
-    NonTerminal (Iterated (nt, sep, non_empty)), span
+    let nt = simple_non_terminal_of_name table span name in
+    NonTerminal (Iterated (nt, (Terminal.of_string sep), non_empty)), span
+  | Ast.NonTerminal (Ast.Optional name) ->
+    let nt = simple_non_terminal_of_name table span name in
+    NonTerminal (Optional nt), span
 
 let rule_of_ast table ((ast, span) : Ast.rule Span.located) =
   {
@@ -186,7 +197,7 @@ let iter f t =
 
 let non_terminals t =
   StringMap.fold (fun _ (def, span) set ->
-      let nt = Ref { span = span; definition = Some def } in
+      let nt = Simple (Ref { span = span; definition = Some def }) in
       let set = NonTerminalSet.add nt set in
       List.fold_right (fun (rule, _) set ->
           List.fold_right (
@@ -218,11 +229,21 @@ let terminals t =
         ) def.rules set
     ) t TerminalSet.empty
   in
+  let process_simple_nt nt set =
+    match nt with
+    | Primitive p ->
+      TerminalSet.add (Terminal.Primitive p) set
+    | _ -> set
+  in
   fold_non_terminals (
     fun nt set ->
       match nt with
-      | Primitive p -> TerminalSet.add (Terminal.Primitive p) set
-      | _ -> set
+      | Simple s ->
+        process_simple_nt s set
+      | Iterated (s, sep, _) ->
+        TerminalSet.add sep (process_simple_nt s set)
+      | Optional s ->
+        process_simple_nt s set
   ) t raw_terminals
 
 let fold_terminals f t accu =
@@ -267,3 +288,10 @@ let print g fmt =
     fun _ (definition, _) ->
       print_definition definition fmt
   ) g
+
+let print_error e fmt =
+  match e with
+  | MultipleDefinitions (name, _) ->
+    Format.fprintf fmt "multiple definitions of non-terminal `%s`" name
+  | UndefinedNonTerminal name ->
+    Format.fprintf fmt "undefined non-terminal `%s`" name
