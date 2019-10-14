@@ -1,10 +1,14 @@
 open CodeMap
 open Unicode.UString
 
+type non_terminal =
+  | Ident of Utf8String.t
+  | Iterated of Utf8String.t * Utf8String.t * bool
+
 (** Token. *)
 type token =
   | Terminal of Utf8String.t
-  | NonTerminal of Utf8String.t
+  | NonTerminal of non_terminal
 
 (** Non-terminal rule. *)
 type rule = {
@@ -24,7 +28,9 @@ type grammar = definition Span.located list
 let print_token token fmt =
   match token with
   | Terminal name -> Format.fprintf fmt "%s" name
-  | NonTerminal name -> Format.fprintf fmt "<%s>" name
+  | NonTerminal (Ident name) -> Format.fprintf fmt "<%s>" name
+  | NonTerminal (Iterated (name, sep, false)) -> Format.fprintf fmt "<%s*%s>" name sep
+  | NonTerminal (Iterated (name, sep, true)) -> Format.fprintf fmt "<%s+%s>" name sep
 
 let print_rule rule fmt =
   Format.fprintf fmt "| %s " (fst rule.constructor);

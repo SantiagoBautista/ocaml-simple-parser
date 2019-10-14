@@ -66,14 +66,14 @@ and compute_first_terminals_of_non_terminal visited_rules (nt, span) =
     | Grammar.Ref rnt ->
       let def = Option.get rnt.definition in
       compute_first_terminals_of_non_terminal_def visited_rules nt (def, span)
-    | Grammar.Iterated (nt, sep) ->
+    | Grammar.Iterated (nt, sep, non_empty) ->
       let set = compute_first_terminals_of_non_terminal visited_rules (Grammar.Ref nt, span) in
       let set = match TerminalOptMap.find_opt None set with
         | Some route ->
           add (Some (Grammar.Terminal.Keyword sep)) route set
         | None -> set
       in
-      add None Route.Nil set
+      if non_empty then set else add None Route.Nil set
     | Grammar.Optional nt ->
       add None Route.None (compute_first_terminals_of_non_terminal visited_rules (Grammar.Ref nt, span))
   end
@@ -115,14 +115,14 @@ let check_rule_ambiguities table def (rule, rule_span) =
       | Grammar.Ref nt ->
         let def = Option.get nt.definition in
         Hashtbl.find table def.Grammar.name
-      | Grammar.Iterated (nt, sep) ->
+      | Grammar.Iterated (nt, sep, non_empty) ->
         let set = first_terminals_of table (Grammar.Ref nt) in
         let set = match TerminalOptMap.find_opt None set with
           | Some route ->
             add (Some (Grammar.Terminal.Keyword sep)) route set
           | None -> set
         in
-        add None Route.Nil set
+        if non_empty then set else add None Route.Nil set
       | Grammar.Optional nt ->
         add None Route.None (first_terminals_of table (Grammar.Ref nt))
     end

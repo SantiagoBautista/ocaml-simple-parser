@@ -11,11 +11,14 @@ module Token = struct
   type t =
     | Terminal of Utf8String.t
     | NonTerminal of Utf8String.t
+    | Iterated of Utf8String.t * Utf8String.t * bool
 
   let print t fmt =
     match t with
     | Terminal name -> Format.fprintf fmt "%s" name
     | NonTerminal name -> Format.fprintf fmt "<%s>" name
+    | Iterated (name, sep, false) -> Format.fprintf fmt "<%s*%s>" name sep
+    | Iterated (name, sep, true) -> Format.fprintf fmt "<%s+%s>" name sep
 end
 
 module TokenKind = struct
@@ -58,6 +61,25 @@ let rec read_non_terminal span chars =
   let return span chars buffer =
     Seq.Cons (Span.located span (Token.NonTerminal buffer), next (Span.next span) chars)
   in
+  let return_iterated span chars buffer sep non_empty =
+    Seq.Cons (Span.located span (Token.Iterated (buffer, sep, non_empty)), next (Span.next span) chars)
+  in
+  let rec read_separator name non_empty span chars buffer =
+    match consume span chars with
+    | _, Seq.Nil ->
+      raise (Error (Span.located span (Unexpected None)))
+    | span', Seq.Cons (c, chars') ->
+      begin match UChar.to_int c with
+        | 0x3e -> (* > *)
+          (* Read the char and stop. *)
+          return_iterated span' chars' name buffer non_empty
+        | _ when UChar.is_whitespace c || UChar.is_control c ->
+          (* Error. *)
+          raise (Error (Span.located span (Unexpected (Some c))))
+        | _ ->
+          read_separator name non_empty span' chars' (Utf8String.push c buffer)
+      end
+  in
   let rec read span chars buffer =
     match consume span chars with
     | _, Seq.Nil ->
@@ -67,6 +89,10 @@ let rec read_non_terminal span chars =
         | 0x3e -> (* > *)
           (* Read the char and stop. *)
           return span' chars' buffer
+        | 0x2a -> (* * *)
+          read_separator buffer false span' chars' ""
+        | 0x2b -> (* + *)
+          read_separator buffer true span' chars' ""
         | _ when UChar.is_whitespace c || UChar.is_control c ->
           (* Error. *)
           raise (Error (Span.located span (Unexpected (Some c))))

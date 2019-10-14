@@ -41,7 +41,8 @@ let tokens lexer : (Ast.token Span.located, Lexer.t) SeqThen.t =
     | Seq.Cons ((token, span), lexer') ->
       begin match token with
         | Lexer.Token.Terminal name -> SeqThen.Cons ((Ast.Terminal name, span), next lexer')
-        | Lexer.Token.NonTerminal name -> SeqThen.Cons ((Ast.NonTerminal name, span), next lexer')
+        | Lexer.Token.NonTerminal name -> SeqThen.Cons ((Ast.NonTerminal (Ast.Ident name), span), next lexer')
+        | Lexer.Token.Iterated (name, sep, non_empty) -> SeqThen.Cons ((Ast.NonTerminal (Ast.Iterated (name, sep, non_empty)), span), next lexer')
         (* | _ -> raise (Error (Unexpected (token, [Lexer.TokenKind.Terminal; Lexer.TokenKind.NonTerminal]), span)) *)
       end
   in

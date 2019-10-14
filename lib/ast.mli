@@ -1,10 +1,14 @@
 open CodeMap
 open Unicode.UString
 
+type non_terminal =
+  | Ident of Utf8String.t
+  | Iterated of Utf8String.t * Utf8String.t * bool
+
 (** Token. *)
 type token =
   | Terminal of Utf8String.t
-  | NonTerminal of Utf8String.t
+  | NonTerminal of non_terminal
 
 (** Non-terminal rule. *)
 type rule = {

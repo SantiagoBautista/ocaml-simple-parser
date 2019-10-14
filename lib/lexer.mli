@@ -11,6 +11,7 @@ module Token : sig
   type t =
     | Terminal of Utf8String.t
     | NonTerminal of Utf8String.t
+    | Iterated of Utf8String.t * Utf8String.t * bool
 
   val print : t -> Format.formatter -> unit
 end

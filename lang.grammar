@@ -5,3 +5,6 @@ type expression =
 
 type action =
 	| Eat					eat
+
+type program =
+	| Program 		<expression*;>

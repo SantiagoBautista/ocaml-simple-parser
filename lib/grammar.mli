@@ -29,9 +29,12 @@ type token =
   | NonTerminal of non_terminal
 
 and non_terminal =
-  | Ref of non_terminal_ref
-  | Iterated of non_terminal_ref * Utf8String.t
-  | Optional of non_terminal_ref
+  | Simple of simple_non_terminal
+  | Iterated of simple_non_terminal * Utf8String.t * bool
+  | Optional of simple_non_terminal
+
+and simple_non_terminal =
+  | Ref non_terminal_ref
   | Primitive of primitive
 
 and non_terminal_ref = {

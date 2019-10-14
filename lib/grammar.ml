@@ -73,7 +73,7 @@ type token =
 
 and non_terminal =
   | Ref of non_terminal_ref
-  | Iterated of non_terminal_ref * Utf8String.t
+  | Iterated of non_terminal_ref * Utf8String.t * bool
   | Optional of non_terminal_ref
   | Primitive of primitive
 
@@ -99,8 +99,10 @@ module NonTerminal = struct
     match t with
     | Ref nt ->
       Format.fprintf fmt "<%s>" (Option.get nt.definition).name
-    | Iterated (nt, sep) ->
+    | Iterated (nt, sep, false) ->
       Format.fprintf fmt "<%s*%s>" (Option.get nt.definition).name sep
+    | Iterated (nt, sep, true) ->
+      Format.fprintf fmt "<%s+%s>" (Option.get nt.definition).name sep
     | Optional nt ->
       Format.fprintf fmt "<%s?>" (Option.get nt.definition).name
     | Primitive Int ->
@@ -131,9 +133,12 @@ let token_of_ast table (token, span) =
   match token with
   | Ast.Terminal name ->
     Terminal (Terminal.of_string name), span
-  | Ast.NonTerminal name ->
+  | Ast.NonTerminal (Ast.Ident name) ->
     let nt = non_terminal_of_name table span name in
     NonTerminal nt, span
+  | Ast.NonTerminal (Ast.Iterated (name, sep, non_empty)) ->
+    let nt = non_terminal_of_name table span name in
+    NonTerminal (Iterated (nt, sep, non_empty)), span
 
 let rule_of_ast table ((ast, span) : Ast.rule Span.located) =
   {
