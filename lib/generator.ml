@@ -86,6 +86,10 @@ let generate_definition_function_name def fmt =
   let name = def.Grammar.name in
   Format.fprintf fmt "parse_nt_%s" name
 
+let generate_definition_printer_function_name def fmt =
+  let name = def.Grammar.name in
+  Format.fprintf fmt "print_nt_%s" name
+
 let generate_simple_non_terminal_function_name nt fmt =
   match nt with
   | Grammar.Primitive Int ->
@@ -95,6 +99,16 @@ let generate_simple_non_terminal_function_name nt fmt =
   | Grammar.Ref r ->
     let def = Option.get r.definition in
     generate_definition_function_name def fmt
+
+let generate_simple_non_terminal_printer_function_name nt fmt =
+  match nt with
+  | Grammar.Primitive Int ->
+    Format.fprintf fmt "print_int"
+  | Grammar.Primitive Ident ->
+    Format.fprintf fmt "print_ident"
+  | Grammar.Ref r ->
+    let def = Option.get r.definition in
+    generate_definition_printer_function_name def fmt
 
 let generate_non_terminal_function_name nt fmt =
   match nt with
@@ -106,6 +120,17 @@ let generate_non_terminal_function_name nt fmt =
     Format.fprintf fmt "non_empty_iter_%t (%t)" (generate_simple_non_terminal_function_name s) (generate_terminal sep)
   | Grammar.Optional s ->
     Format.fprintf fmt "opt_%t" (generate_simple_non_terminal_function_name s)
+
+let generate_non_terminal_printer_function_name nt fmt =
+  match nt with
+  | Grammar.Simple s ->
+    generate_simple_non_terminal_printer_function_name s fmt
+  | Grammar.Iterated (s, sep, false) ->
+    Format.fprintf fmt "iter_%t (%t)" (generate_simple_non_terminal_printer_function_name s) (generate_terminal sep)
+  | Grammar.Iterated (s, sep, true) ->
+    Format.fprintf fmt "non_empty_iter_%t (%t)" (generate_simple_non_terminal_printer_function_name s) (generate_terminal sep)
+  | Grammar.Optional s ->
+    Format.fprintf fmt "opt_%t" (generate_simple_non_terminal_printer_function_name s)
 
 let generate_definition_parser table def fmt =
   let name = def.Grammar.name in
@@ -190,6 +215,55 @@ let generate_definition_parser table def fmt =
   end;
   Format.fprintf fmt "@."
 
+let generate_definition_printer def fmt =
+  (* let name = def.Grammar.name in *)
+  let has_non_terminal = List.exists (
+      function (rule, _) ->
+        Grammar.rule_args rule != []
+    ) def.Grammar.rules
+  in
+  Format.fprintf fmt "and %t %s t out = \n" (generate_definition_printer_function_name def) (if has_non_terminal then "indent" else "_");
+  Format.fprintf fmt "match t with\n";
+  List.iter (
+    function (rule, _) ->
+      let args = Grammar.rule_args rule in
+      if args = [] then
+        Format.fprintf fmt "| %s -> Printf.fprintf out \"" (fst rule.constructor)
+      else begin
+        let rec print_args n fmt =
+          match n with
+          | 0 -> ()
+          | 1 -> Format.fprintf fmt "(arg0, _)"
+          | n -> Format.fprintf fmt "%t, (arg%d, _)" (print_args (n-1)) (n-1)
+        in
+        Format.fprintf fmt "| %s (%t) -> Printf.fprintf out \"" (fst rule.constructor) (print_args (List.length args))
+      end;
+      ignore (List.fold_left (
+        fun i token ->
+          (* let sep = if i = 0 then "" else " " in *)
+          begin match token with
+          | (Grammar.Terminal t, _) ->
+            Format.fprintf fmt "%t " (Grammar.Terminal.print t)
+          | (Grammar.NonTerminal (Grammar.Iterated (_, _, _)), _) ->
+            Format.fprintf fmt "%%t"
+          | (Grammar.NonTerminal _, _) ->
+            Format.fprintf fmt "%%t"
+          end;
+          i + 1
+      ) 0 rule.tokens);
+      Format.fprintf fmt "\" ";
+      ignore (List.fold_left (
+          fun i (token, _) ->
+            match token with
+            | Grammar.NonTerminal nt ->
+              Format.fprintf fmt "(%t indent arg%d) " (generate_non_terminal_printer_function_name nt) i;
+              i + 1
+            | _ -> i
+        ) 0 rule.tokens);
+      Format.fprintf fmt "\n"
+  ) def.rules;
+  Format.fprintf fmt "\n"
+
 let generate_simple_non_terminal_parser table nt fmt =
   match nt with
   | Grammar.Primitive Grammar.Int ->
@@ -210,6 +284,21 @@ let generate_simple_non_terminal_parser table nt fmt =
   "
   | Grammar.Ref r ->
     generate_definition_parser table (Option.get r.definition) fmt
+
+let generate_simple_non_terminal_printer nt fmt =
+  match nt with
+  | Grammar.Primitive Grammar.Int ->
+    Format.fprintf fmt "and print_int _ t out =
+  Printf.fprintf out \"%%d\" t
+
+"
+  | Grammar.Primitive Grammar.Ident ->
+    Format.fprintf fmt "and print_ident _ t out =
+  Printf.fprintf out \"%%s\" t
+
+"
+  | Grammar.Ref r ->
+    generate_definition_printer (Option.get r.definition) fmt
 
 let generate_non_terminal_parser defined_functions table nt fmt =
   match nt with
@@ -283,6 +372,77 @@ let generate_non_terminal_parser defined_functions table nt fmt =
 
 "
 
+let generate_non_terminal_printer defined_functions nt fmt =
+  match nt with
+  | Grammar.Simple s ->
+    generate_simple_non_terminal_printer s fmt
+  | Grammar.Iterated (s, _, true) ->
+    let sname = Format.asprintf "%t" (generate_simple_non_terminal_printer_function_name s) in
+    let name = Format.asprintf "non_empty_iter_%s" sname in
+    if Hashtbl.mem defined_functions name then () else begin
+      Hashtbl.add defined_functions name ();
+      Format.fprintf fmt "and %s sep indent l out =
+  Printf.fprintf out \"\n\";
+  let rec print l out =
+    match l with
+    | [] -> ()
+    | (e, _)::[] ->
+      print__indent (indent + 1) out;
+      %s (indent + 1) e out
+    | (e, _)::l ->
+      print__indent (indent + 1) out;
+      Printf.fprintf out \"%%t %%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
+      print l out
+  in
+  print l out;
+  Printf.fprintf out \"\n\";
+  print__indent indent out
+
+"
+        name
+        sname
+        sname
+    end
+  | Grammar.Iterated (s, _, false) ->
+    let sname = Format.asprintf "%t" (generate_simple_non_terminal_printer_function_name s) in
+    let name = Format.asprintf "iter_%s" sname in
+    if Hashtbl.mem defined_functions name then () else begin
+      Hashtbl.add defined_functions name ();
+      Format.fprintf fmt "and %s sep indent l out =
+  if l = [] then () else begin
+    Printf.fprintf out \"\n\";
+    let rec print l out =
+      match l with
+      | [] -> ()
+      | (e, _)::[] ->
+        print__indent (indent + 1) out;
+        %s (indent + 1) e out
+      | (e, _)::l ->
+        print__indent (indent + 1) out;
+        Printf.fprintf out \"%%t %%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
+        print l out
+    in
+    print l out;
+    Printf.fprintf out \"\n\";
+    print__indent indent out
+  end
+
+"
+        name
+        sname
+        sname
+    end
+  | Grammar.Optional s ->
+    let sname = Format.asprintf "%t" (generate_simple_non_terminal_printer_function_name s) in
+    Format.fprintf fmt "and opt_%s indent e_opt out =
+  match e_opt with
+  | Some e -> %s indent e out
+  | None -> ()
+
+"
+      sname
+      sname
+
 module TokenKind = struct
   type t =
     | Keyword
@@ -340,7 +500,37 @@ let generate_ast g fmt =
       fun (def, _) is_rec ->
         generate_definition_declaration is_rec def fmt;
         true
-    ) g false)
+    ) g false);
+  Format.fprintf fmt "let rec print__indent n out =
+    if n <= 0 then () else begin
+      Printf.fprintf out \"  \";
+      print__indent (n-1) out
+    end
+
+  ";
+  let defined_functions = Hashtbl.create 8 in
+  Grammar.iter_non_terminals (
+    function nt ->
+      generate_non_terminal_printer defined_functions nt fmt
+  ) g;
+  Grammar.iter (
+    function (def, _) ->
+      let name = def.Grammar.name in
+      Format.fprintf fmt "let print_%s = %t 0\n\n" name (generate_definition_printer_function_name def)
+  ) g
+
+let generate_ast_interface g fmt =
+  Format.fprintf fmt "open CodeMap\n\n";
+  ignore (Grammar.fold (
+      fun (def, _) is_rec ->
+        generate_definition_declaration is_rec def fmt;
+        true
+    ) g false);
+  Grammar.iter (
+    function (def, _) ->
+      let name = def.Grammar.name in
+      Format.fprintf fmt "val print_%s : %s -> out_channel -> unit\n" name name
+  ) g
 
 let generate_lexer_token_type g out =
   let kinds = terminal_kinds g in

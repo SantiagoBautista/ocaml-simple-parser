@@ -85,7 +85,10 @@ let process_file conf filename =
     (* Format.printf "%t@." (SimpleParser.Grammar.print grammar); *)
     begin match conf.Conf.component with
       | Ast ->
-        Format.printf "%t@." (SimpleParser.Generator.generate_ast grammar)
+        if conf.interface then
+          Format.printf "%t@." (SimpleParser.Generator.generate_ast_interface grammar)
+        else
+          Format.printf "%t@." (SimpleParser.Generator.generate_ast grammar)
       | Lexer ->
         if conf.interface then
           Format.printf "%t@." (SimpleParser.Generator.generate_lexer_interface grammar)
@@ -99,13 +102,13 @@ let process_file conf filename =
     end
   with
   | SimpleParser.Lexer.Error (e, span) ->
-    Format.eprintf "\x1b[31mLex error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Lexer.print_error e)
+    Format.eprintf "\x1b[31mLex error\x1b[0m: %t: %t@." (CodeMap.Span.format span) (SimpleParser.Lexer.print_error e)
   | SimpleParser.Parser.Error (e, span) ->
-    Format.eprintf "\x1b[31mParse error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Parser.print_error e)
+    Format.eprintf "\x1b[31mParse error\x1b[0m: %t: %t@." (CodeMap.Span.format span) (SimpleParser.Parser.print_error e)
   | SimpleParser.Grammar.Error (e, span) ->
-    Format.eprintf "\x1b[31mGrammar error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Grammar.print_error e)
+    Format.eprintf "\x1b[31mGrammar error\x1b[0m: %t: %t@." (CodeMap.Span.format span) (SimpleParser.Grammar.print_error e)
   | SimpleParser.ParseTable.Error (e, span) ->
-    Format.eprintf "\x1b[31mGeneration error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.ParseTable.print_error e)
+    Format.eprintf "\x1b[31mGeneration error\x1b[0m: %t: %t@." (CodeMap.Span.format span) (SimpleParser.ParseTable.print_error e)
 
 let _ =
   (* let opt = Format.get_formatter_out_functions () in

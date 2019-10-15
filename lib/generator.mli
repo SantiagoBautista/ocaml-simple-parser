@@ -1,6 +1,9 @@
 (* open CodeMap
 open Unicode.UString *)
 
+val generate_ast_interface : Grammar.t -> Format.formatter -> unit
+(** Write the abstract syntax tree interface to the given output channel. *)
+
 val generate_ast : Grammar.t -> Format.formatter -> unit
 (** Write the abstract syntax tree to the given output channel. *)
 
