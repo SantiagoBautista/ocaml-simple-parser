@@ -52,7 +52,7 @@ let spec =
   +> arg (short 'i') (Flag Conf.interface) "Output the interface of the selected component."
   +> arg (short 'v') (Flag Conf.verbose) "Increase the level of verbosity."
   +> arg (short 'q') (Flag Conf.quiet) "Decrease the level of verbosity."
-  +> anon "FILE" (String Conf.set_file) "Sets the input file(s) to process."
+  +> anon "FILE" (String Conf.set_file) "Sets the input file to process."
 
 (** Make a sequence of char out of an input channel. *)
 let seq_of_channel input =
@@ -98,10 +98,14 @@ let process_file conf filename =
           Format.printf "%t@." (SimpleParser.Generator.generate_parser grammar)
     end
   with
-  | SimpleParser.Grammar.Error (e, _) ->
-    Format.eprintf "grammar error: %t@." (SimpleParser.Grammar.print_error e)
-  | SimpleParser.ParseTable.Error (e, _) ->
-    Format.eprintf "generation error: %t@." (SimpleParser.ParseTable.print_error e)
+  | SimpleParser.Lexer.Error (e, span) ->
+    Format.eprintf "\x1b[31mLex error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Lexer.print_error e)
+  | SimpleParser.Parser.Error (e, span) ->
+    Format.eprintf "\x1b[31mParse error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Parser.print_error e)
+  | SimpleParser.Grammar.Error (e, span) ->
+    Format.eprintf "\x1b[31mGrammar error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.Grammar.print_error e)
+  | SimpleParser.ParseTable.Error (e, span) ->
+    Format.eprintf "\x1b[31mGeneration error\x1b[0m: %t: %t@." (CodeMap.Span.print span) (SimpleParser.ParseTable.print_error e)
 
 let _ =
   (* let opt = Format.get_formatter_out_functions () in
@@ -111,5 +115,7 @@ let _ =
   begin match conf.filename with
     | Some filename ->
       process_file conf filename
-    | None -> failwith "missing file"
+    | None ->
+      Printf.eprintf "No file specified. Use `simple-parser-gen --help` to show usage informations.";
+      exit 1
   end
