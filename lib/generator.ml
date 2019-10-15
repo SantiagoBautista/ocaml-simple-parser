@@ -363,23 +363,23 @@ let generate_lexer_token_printer kinds out =
   TokenKindSet.iter (
     function
     | TokenKind.Keyword -> Format.fprintf out "| Keyword kw -> Keyword.print kw fmt\n"
-    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Format.fprintf fmt \"%%c\" d \n"
-    | TokenKind.End -> Format.fprintf out "| End d -> Format.fprintf fmt \"%%c\" d \n"
-    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Format.fprintf fmt \"%%s\" name \n"
-    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Format.fprintf fmt \"%%d\" i \n"
-    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Format.fprintf fmt \"%%s\" name \n"
+    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Printf.fprintf fmt \"%%c\" d \n"
+    | TokenKind.End -> Format.fprintf out "| End d -> Printf.fprintf fmt \"%%c\" d \n"
+    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Printf.fprintf fmt \"%%s\" name \n"
+    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Printf.fprintf fmt \"%%d\" i \n"
+    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Printf.fprintf fmt \"%%s\" name \n"
   ) kinds;
   Format.fprintf out "\n";
   Format.fprintf out "let print_token_debug t fmt = \n";
   Format.fprintf out "  match t with \n";
   TokenKindSet.iter (
     function
-    | TokenKind.Keyword -> Format.fprintf out "| Keyword kw -> Format.fprintf fmt \"keyword `%%t`\" (Keyword.print kw)\n"
-    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Format.fprintf fmt \"opening `%%c`\" d \n"
-    | TokenKind.End -> Format.fprintf out "| End d -> Format.fprintf fmt \"closing `%%c`\" d \n"
-    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Format.fprintf fmt \"operator `%%s`\" name \n"
-    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Format.fprintf fmt \"integer `%%d`\" i \n"
-    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Format.fprintf fmt \"identifier `%%s`\" name \n"
+    | TokenKind.Keyword -> Format.fprintf out "| Keyword kw -> Printf.fprintf fmt \"keyword `%%t`\" (Keyword.print kw)\n"
+    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Printf.fprintf fmt \"opening `%%c`\" d \n"
+    | TokenKind.End -> Format.fprintf out "| End d -> Printf.fprintf fmt \"closing `%%c`\" d \n"
+    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Printf.fprintf fmt \"operator `%%s`\" name \n"
+    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Printf.fprintf fmt \"integer `%%d`\" i \n"
+    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Printf.fprintf fmt \"identifier `%%s`\" name \n"
   ) kinds;
   Format.fprintf out "\n"
 
@@ -394,7 +394,7 @@ let generate_lexer_keyword_printer keywords out =
   Format.fprintf out "let print t fmt = \n";
   Format.fprintf out "  match t with \n";
   StringSet.iter (
-    function name -> Format.fprintf out "   | %s -> Format.fprintf fmt \"%s\" \n" (constructor name) name
+    function name -> Format.fprintf out "   | %s -> Printf.fprintf fmt \"%s\" \n" (constructor name) name
   ) keywords;
   Format.fprintf out "\n"
 
@@ -489,12 +489,12 @@ let generate_lexer_interface g fmt =
   Format.fprintf fmt "open UString\n\n";
   let keywords = terminal_keywords g in
   if StringSet.is_empty keywords then () else
-    Format.fprintf fmt "module Keyword : sig\n  %t  val print : t -> Format.formatter -> unit\nend\n\n" (generate_lexer_keyword_type keywords);
+    Format.fprintf fmt "module Keyword : sig\n  %t  val print : t -> out_channel -> unit\nend\n\n" (generate_lexer_keyword_type keywords);
   ignore (generate_lexer_token_type g fmt);
-  Format.fprintf fmt "val print_token : token -> Format.formatter -> unit\n";
-  Format.fprintf fmt "val print_token_debug : token -> Format.formatter -> unit\n\n";
+  Format.fprintf fmt "val print_token : token -> out_channel -> unit\n";
+  Format.fprintf fmt "val print_token_debug : token -> out_channel -> unit\n\n";
   generate_lexer_errors fmt;
-  Format.fprintf fmt "val print_error : error -> Format.formatter -> unit\n\n";
+  Format.fprintf fmt "val print_error : error -> out_channel -> unit\n\n";
   Format.fprintf fmt "type t = token CodeMap.Span.located Seq.t\n\n";
   Format.fprintf fmt "val create : UChar.t Seq.t -> t\n";
   Format.fprintf fmt "val of_channel : in_channel -> t\n"
@@ -511,7 +511,7 @@ let generate_lexer g fmt =
   generate_lexer_errors fmt;
   Format.fprintf fmt "let print_error e fmt =
   match e with
-  | UnknownToken name -> Format.fprintf fmt \"unknown token `%%s`\" name
+  | UnknownToken name -> Printf.fprintf fmt \"unknown token `%%s`\" name
 
 ";
   Format.fprintf fmt "type t = token CodeMap.Span.located Seq.t\n\n";
@@ -649,8 +649,8 @@ let generate_parser g fmt =
   generate_parser_errors fmt;
   Format.fprintf fmt "let print_error e fmt =
   match e with
-  | UnexpectedToken token -> Format.fprintf fmt \"unexpected %%t\" (Lexer.print_token_debug token)
-  | UnexpectedEOF -> Format.fprintf fmt \"unexpected end of file\"
+  | UnexpectedToken token -> Printf.fprintf fmt \"unexpected %%t\" (Lexer.print_token_debug token)
+  | UnexpectedEOF -> Printf.fprintf fmt \"unexpected end of file\"
 
 ";
   Format.fprintf fmt "let rec consume span lexer =
@@ -677,7 +677,7 @@ let generate_parser g fmt =
 
 let generate_parser_interface g fmt =
   generate_parser_errors fmt;
-  Format.fprintf fmt "val print_error : error -> Format.formatter -> unit\n\n";
+  Format.fprintf fmt "val print_error : error -> out_channel -> unit\n\n";
   Grammar.iter (
     function (def, _) ->
       let name = def.Grammar.name in
