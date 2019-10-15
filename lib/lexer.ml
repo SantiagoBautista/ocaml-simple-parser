@@ -129,7 +129,7 @@ and read_terminal span (c, chars) =
     | _, Seq.Nil -> return span chars buffer
     | span', Seq.Cons (c, chars') ->
       begin match UChar.to_int c with
-        | 0x3c -> (* < *)
+        | 0x3c | 0x28 | 0x29 |0x5b | 0x5d | 0x7b | 0x7d -> (* < ( ) [ ] { } *)
           (* Stop here. *)
           return span chars buffer
         | _ when UChar.is_whitespace c || UChar.is_control c ->

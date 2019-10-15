@@ -4,6 +4,6 @@ runCommand "dummy" {
 	buildInputs = [
 		dune
 		ocamlPackages_latest.ocaml
-		ocamlPackages.odoc
+		ocamlPackages_latest.odoc
 	];
 } ""

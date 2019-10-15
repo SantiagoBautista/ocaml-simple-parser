@@ -349,23 +349,54 @@ let generate_lexer_token_type g out =
   Format.fprintf out "\n";
   kinds
 
-let generate_lexer_keyword_type g out =
-  let keywords = terminal_keywords g in
-  if StringSet.is_empty keywords then () else begin
-    Format.fprintf out "type t = \n";
-    StringSet.iter (
-      function name ->
-        Format.fprintf out "| %s \n" (constructor name)
-    ) keywords
-  end
+let generate_lexer_token_printer kinds out =
+  Format.fprintf out "let print_token t fmt = \n";
+  Format.fprintf out "  match t with \n";
+  TokenKindSet.iter (
+    function
+    | TokenKind.Keyword -> Format.fprintf out "| Keyword kw -> Keyword.print kw fmt\n"
+    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Format.fprintf fmt \"%%c\" d \n"
+    | TokenKind.End -> Format.fprintf out "| End d -> Format.fprintf fmt \"%%c\" d \n"
+    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Format.fprintf fmt \"%%s\" name \n"
+    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Format.fprintf fmt \"%%d\" i \n"
+    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Format.fprintf fmt \"%%s\" name \n"
+  ) kinds;
+  Format.fprintf out "\n";
+  Format.fprintf out "let print_token_debug t fmt = \n";
+  Format.fprintf out "  match t with \n";
+  TokenKindSet.iter (
+    function
+    | TokenKind.Keyword -> Format.fprintf out "| Keyword kw -> Format.fprintf fmt \"keyword `%%t`\" (Keyword.print kw)\n"
+    | TokenKind.Begin -> Format.fprintf out "| Begin d -> Format.fprintf fmt \"opening `%%c`\" d \n"
+    | TokenKind.End -> Format.fprintf out "| End d -> Format.fprintf fmt \"closing `%%c`\" d \n"
+    | TokenKind.Operator -> Format.fprintf out "| Operator name -> Format.fprintf fmt \"operator `%%s`\" name \n"
+    | TokenKind.Primitive Grammar.Int -> Format.fprintf out "| Int i -> Format.fprintf fmt \"integer `%%d`\" i \n"
+    | TokenKind.Primitive Grammar.Ident -> Format.fprintf out "| Ident name -> Format.fprintf fmt \"identifier `%%s`\" name \n"
+  ) kinds;
+  Format.fprintf out "\n"
+
+let generate_lexer_keyword_type keywords out =
+  Format.fprintf out "type t = \n";
+  StringSet.iter (
+    function name ->
+      Format.fprintf out "  | %s \n" (constructor name)
+  ) keywords
+
+let generate_lexer_keyword_printer keywords out =
+  Format.fprintf out "let print t fmt = \n";
+  Format.fprintf out "  match t with \n";
+  StringSet.iter (
+    function name -> Format.fprintf out "   | %s -> Format.fprintf fmt \"%s\" \n" (constructor name) name
+  ) keywords;
+  Format.fprintf out "\n"
 
 let generate_lexer_int fmt =
   Format.fprintf fmt "let int_opt str =
-                        match int_of_string_opt str with
-                        | Some i -> Some (Int i)
-                        | None -> None
+  match int_of_string_opt str with
+  | Some i -> Some (Int i)
+  | None -> None
 
-                                    "
+"
 
 let generate_lexer_delimiters g fmt =
   let delimiters = terminal_delimiters g in
@@ -448,9 +479,14 @@ exception Error of error CodeMap.Span.located
 let generate_lexer_interface g fmt =
   Format.fprintf fmt "open Unicode\n";
   Format.fprintf fmt "open UString\n\n";
-  Format.fprintf fmt "module Keyword : sig\n  %tend\n\n" (generate_lexer_keyword_type g);
+  let keywords = terminal_keywords g in
+  if StringSet.is_empty keywords then () else
+    Format.fprintf fmt "module Keyword : sig\n  %t  val print : t -> Format.formatter -> unit\nend\n\n" (generate_lexer_keyword_type keywords);
   ignore (generate_lexer_token_type g fmt);
+  Format.fprintf fmt "val print_token : token -> Format.formatter -> unit\n";
+  Format.fprintf fmt "val print_token_debug : token -> Format.formatter -> unit\n\n";
   generate_lexer_errors fmt;
+  Format.fprintf fmt "val print_error : error -> Format.formatter -> unit\n\n";
   Format.fprintf fmt "type t = token CodeMap.Span.located Seq.t\n\n";
   Format.fprintf fmt "val create : UChar.t Seq.t -> t\n"
 
@@ -466,9 +502,17 @@ let generate_lexer g fmt =
   Format.fprintf fmt "open CodeMap\n";
   Format.fprintf fmt "open Unicode\n";
   Format.fprintf fmt "open UString\n\n";
-  Format.fprintf fmt "module Keyword = struct\n  %tend\n\n" (generate_lexer_keyword_type g);
+  let keywords = terminal_keywords g in
+  if StringSet.is_empty keywords then () else
+    Format.fprintf fmt "module Keyword = struct\n  %t  %t\nend\n\n" (generate_lexer_keyword_type keywords) (generate_lexer_keyword_printer keywords);
   let kinds = generate_lexer_token_type g fmt in
+  generate_lexer_token_printer kinds fmt;
   generate_lexer_errors fmt;
+  Format.fprintf fmt "let print_error e fmt =
+  match e with
+  | UnknownToken name -> Format.fprintf fmt \"unknown token `%%s`\" name
+
+";
   Format.fprintf fmt "type t = token CodeMap.Span.located Seq.t\n\n";
 
   generate_lexer_delimiters g fmt;
@@ -521,12 +565,17 @@ let create input =
   let rec next span chars () =
     begin match consume span chars with
       | _, Seq.Nil -> Seq.Nil
-      | span, Seq.Cons (c, chars) when UChar.is_whitespace c || UChar.is_control c ->
-        next (Span.next span) chars ()
-      | span, Seq.Cons (c, chars) when UChar.is_alphabetic c ->
-        read_alphanumeric span (c, chars)
       | span, Seq.Cons (c, chars) ->
-        read_operator span (c, chars)
+        begin match UChar.to_int c with
+          | 0x28 | 0x29 |0x5b | 0x5d | 0x7b | 0x7d -> (* ( ) [ ] { } *)
+            return span chars (Utf8String.push c \"\")
+          | _ when UChar.is_whitespace c || UChar.is_control c ->
+            next (Span.next span) chars ()
+          | _ when UChar.is_alphanumeric c ->
+            read_alphanumeric span (c, chars)
+          | _ ->
+            read_operator span (c, chars)
+        end
     end
   and return span chars buffer =
     let token = token_of_buffer span buffer in
@@ -547,10 +596,14 @@ let create input =
         match consume span chars with
         | _, Seq.Nil -> return span chars buffer
         | span', Seq.Cons (c, chars') ->
-          if UChar.is_whitespace c || UChar.is_control c || UChar.is_alphabetic c then
-            return span chars buffer
-          else
-            read span' chars' (Utf8String.push c buffer)
+          begin match UChar.to_int c with
+            | 0x28 | 0x29 |0x5b | 0x5d | 0x7b | 0x7d -> (* ( ) [ ] { } *)
+              return span chars buffer
+            | _ when UChar.is_whitespace c || UChar.is_control c || UChar.is_alphanumeric c ->
+              return span chars buffer
+            | _ ->
+              read span' chars' (Utf8String.push c buffer)
+          end
       in
       read span chars (Utf8String.push c \"\")
   in
@@ -570,6 +623,12 @@ let generate_parser g fmt =
   let table = ParseTable.of_grammar g in
   Format.fprintf fmt "open CodeMap\n\n";
   generate_parser_errors fmt;
+  Format.fprintf fmt "let print_error e fmt =
+  match e with
+  | UnexpectedToken token -> Format.fprintf fmt \"unexpected %%t\" (Lexer.print_token_debug token)
+  | UnexpectedEOF -> Format.fprintf fmt \"unexpected end of file\"
+
+";
   Format.fprintf fmt "let rec consume span lexer =
     match lexer () with
     | Seq.Nil -> raise (Error (UnexpectedEOF, span))
@@ -594,6 +653,7 @@ let generate_parser g fmt =
 
 let generate_parser_interface g fmt =
   generate_parser_errors fmt;
+  Format.fprintf fmt "val print_error : error -> Format.formatter -> unit\n\n";
   Grammar.iter (
     function (def, _) ->
       let name = def.Grammar.name in
