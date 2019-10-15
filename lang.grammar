@@ -1,8 +1,0 @@
-type expression =
-	| IfThenElse	if <action> { <expression> } else { <expression> }
-
-type action =
-	| Eat					eat
-
-type program =
-	| Program 		<expression+;>
