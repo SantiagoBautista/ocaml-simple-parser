@@ -289,12 +289,12 @@ let generate_simple_non_terminal_printer nt fmt =
   match nt with
   | Grammar.Primitive Grammar.Int ->
     Format.fprintf fmt "and print_int _ t out =
-  Printf.fprintf out \"%%d\" t
+  Printf.fprintf out \"%%d \" t
 
 "
   | Grammar.Primitive Grammar.Ident ->
     Format.fprintf fmt "and print_ident _ t out =
-  Printf.fprintf out \"%%s\" t
+  Printf.fprintf out \"%%s \" t
 
 "
   | Grammar.Ref r ->
