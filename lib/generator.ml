@@ -334,6 +334,14 @@ let terminal_delimiters g =
       | _ -> set
   ) g CharSet.empty
 
+let generate_ast g fmt =
+  Format.fprintf fmt "open CodeMap\n\n";
+  ignore (Grammar.fold (
+      fun (def, _) is_rec ->
+        generate_definition_declaration is_rec def fmt;
+        true
+    ) g false)
+
 let generate_lexer_token_type g out =
   let kinds = terminal_kinds g in
   Format.fprintf out "type token = \n";
@@ -488,15 +496,8 @@ let generate_lexer_interface g fmt =
   generate_lexer_errors fmt;
   Format.fprintf fmt "val print_error : error -> Format.formatter -> unit\n\n";
   Format.fprintf fmt "type t = token CodeMap.Span.located Seq.t\n\n";
-  Format.fprintf fmt "val create : UChar.t Seq.t -> t\n"
-
-let generate_ast g fmt =
-  Format.fprintf fmt "open CodeMap\n\n";
-  ignore (Grammar.fold (
-      fun (def, _) is_rec ->
-        generate_definition_declaration is_rec def fmt;
-        true
-    ) g false)
+  Format.fprintf fmt "val create : UChar.t Seq.t -> t\n";
+  Format.fprintf fmt "val of_channel : in_channel -> t\n"
 
 let generate_lexer g fmt =
   Format.fprintf fmt "open CodeMap\n";
@@ -608,6 +609,29 @@ let create input =
       read span chars (Utf8String.push c \"\")
   in
   next Span.default input
+
+(* Create a sequence of chars from an input channel. *)
+let seq_of_channel input =
+  let rec next mem () =
+    match !mem with
+    | Some res -> res
+    | None ->
+      let res =
+        try
+          let c = input_char input in
+          Seq.Cons (c, next (ref None))
+        with
+        | End_of_file -> Seq.Nil
+      in
+      mem := Some res;
+      res
+  in
+  next (ref None)
+
+let of_channel chan =
+  let input = seq_of_channel chan in
+  let utf8_input = Unicode.Encoding.utf8_decode input in
+  create utf8_input
 "
 
 let generate_parser_errors fmt =
