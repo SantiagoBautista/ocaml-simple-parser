@@ -391,7 +391,7 @@ let generate_non_terminal_printer defined_functions nt fmt =
       %s (indent + 1) e out
     | (e, _)::l ->
       print__indent (indent + 1) out;
-      Printf.fprintf out \"%%t %%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
+      Printf.fprintf out \"%%t%%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
       print l out
   in
   print l out;
@@ -419,7 +419,7 @@ let generate_non_terminal_printer defined_functions nt fmt =
         %s (indent + 1) e out
       | (e, _)::l ->
         print__indent (indent + 1) out;
-        Printf.fprintf out \"%%t %%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
+        Printf.fprintf out \"%%t%%t\\n\" (%s (indent + 1) e) (Lexer.print_token sep);
         print l out
     in
     print l out;
