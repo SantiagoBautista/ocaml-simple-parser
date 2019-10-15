@@ -119,3 +119,10 @@ let parse lexer =
       (definitions lexer)
   in
   g
+
+let print_error e fmt =
+  match e with
+  | Unexpected (token, _) ->
+    Format.fprintf fmt "unexpected token `%t`" (Lexer.Token.print token)
+  | UnexpectedEOF ->
+    Format.fprintf fmt "unexpected end of file"

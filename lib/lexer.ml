@@ -167,3 +167,12 @@ and next span chars () =
 
 let create chars =
   next Span.default chars
+
+let print_error e fmt =
+  match e with
+  | Unexpected (Some c) ->
+    Format.fprintf fmt "unexpected char `%s`" (Utf8String.push c "")
+  | Unexpected None ->
+    Format.fprintf fmt "unexpected end of file"
+  | EmptyToken ->
+    Format.fprintf fmt "you must use a non-empty separator: in <name*sep> or <name+sep>, the `sep` part cannot be empty."

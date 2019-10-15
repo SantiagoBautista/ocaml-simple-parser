@@ -25,3 +25,5 @@ val definitions : Lexer.t -> (Ast.definition Span.located, Lexer.t) SeqThen.t
 
 val parse : Lexer.t -> Ast.grammar
 (** Create a lexer from an unicode character sequence. *)
+
+val print_error : error -> Format.formatter -> unit

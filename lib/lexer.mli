@@ -40,3 +40,5 @@ type t = token Span.located Seq.t
 
 val create : UChar.t Seq.t -> token Span.located Seq.t
 (** Create a lexer from an unicode character sequence. *)
+
+val print_error : error -> Format.formatter -> unit
